@@ -12,7 +12,7 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.entity.ItemRenderer;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
@@ -40,7 +40,7 @@ import java.util.Comparator;
 import java.util.List;
 
 public class ScanManageScreen extends GuiBase {
-    private static final ResourceLocation CIRCLE = XRay.assetLocation("gui/circle.png");
+    private static final Identifier CIRCLE = XRay.assetLocation("gui/circle.png");
 
     private Button distButtons;
     private EditBox search;
@@ -134,12 +134,22 @@ public class ScanManageScreen extends GuiBase {
             button.setMessage(Component.translatable("xray.input.distance", ScanController.INSTANCE.getVisualRadius()));
         }));
 
+        // Bottom row: three buttons share the sidebar width
+        addRenderableWidget(
+            Button.builder(Component.translatable("xray.single.settings"), button -> {
+                minecraft.setScreen(new SettingsScreen());
+            })
+                    .pos(getWidth() / 2 + 79, getHeight() / 2 + 58)
+                    .size(39, 20)
+                    .build()
+        );
+
         addRenderableWidget(
             Button.builder(Component.translatable("xray.single.help"), button -> {
                 minecraft.setScreen(new HelpScreen());
             })
-                    .pos(getWidth() / 2 + 79, getHeight() / 2 + 58)
-                    .size(60, 20)
+                    .pos(getWidth() / 2 + 120, getHeight() / 2 + 58)
+                    .size(39, 20)
                     .build()
         );
 
@@ -147,8 +157,8 @@ public class ScanManageScreen extends GuiBase {
                 Button.builder(Component.translatable("xray.single.close"), button -> {
                     this.onClose();
                 })
-                        .pos((getWidth() / 2 + 79) + 62, getHeight() / 2 + 58)
-                        .size(59, 20)
+                        .pos((getWidth() / 2 + 79) + 82, getHeight() / 2 + 58)
+                        .size(38, 20)
                         .build()
         );
     }

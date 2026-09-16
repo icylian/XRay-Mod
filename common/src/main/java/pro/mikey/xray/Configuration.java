@@ -40,6 +40,48 @@ public enum Configuration {
             .comment("When true, lava will automatically be added to the scan list when XRay is enabled.")
                     .build();
 
+    public final ConfigValue<Integer> fadeStartDistance = integer("fadeStartDistance", () -> 24)
+            .comment("Distance in blocks from the camera where outlines start to fade out.")
+                    .comment("Outlines closer than this are drawn at full strength.")
+                    .build();
+
+    public final ConfigValue<Integer> fadeEndDistance = integer("fadeEndDistance", () -> 96)
+            .comment("Distance in blocks from the camera where outlines reach their minimum opacity.")
+                    .build();
+
+    public final ConfigValue<Integer> fadeMinAlpha = integer("fadeMinAlpha", () -> 15)
+            .comment("Minimum opacity (0-100) that outlines fade down to at fadeEndDistance and beyond.")
+                    .build();
+
+    public final ConfigValue<Boolean> showDensityCompass = bool("showDensityCompass", () -> true)
+            .comment("Show a HUD compass with target counts per direction (N/E/S/W) while XRay is enabled.")
+                    .build();
+
+    public final ConfigValue<Boolean> useScanHeightLimit = bool("useScanHeightLimit", () -> false)
+            .comment("When true, scanning is limited to a band of height around the player.")
+                    .build();
+
+    public final ConfigValue<Integer> scanHeightAbove = integer("scanHeightAbove", () -> 16)
+            .comment("Blocks above the player's feet to include when useScanHeightLimit is true.")
+                    .build();
+
+    public final ConfigValue<Integer> scanHeightBelow = integer("scanHeightBelow", () -> 16)
+            .comment("Blocks below the player's feet to include when useScanHeightLimit is true.")
+                    .build();
+
+    public final ConfigValue<Boolean> caveAvoidance = bool("caveAvoidance", () -> true)
+            .comment("When true, vein highlighting skips veins that hang over a cave,")
+                    .comment("so the highlighted target does not drop the player into a cave or put ore overhead.")
+                    .build();
+
+    public final ConfigValue<Integer> caveCheckDepth = integer("caveCheckDepth", () -> 5)
+            .comment("How many blocks below a vein to probe for open cave air.")
+                    .build();
+
+    public final ConfigValue<Integer> caveCheckMinAir = integer("caveCheckMinAir", () -> 3)
+            .comment("How many consecutive air blocks under a vein count as a cave.")
+                    .build();
+
     Configuration() {}
 
     public void load() {

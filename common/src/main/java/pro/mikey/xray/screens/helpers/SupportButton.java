@@ -1,5 +1,6 @@
 package pro.mikey.xray.screens.helpers;
 
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
@@ -18,6 +19,13 @@ public class SupportButton extends Button {
         for(String line : support.getString().split("\n")) {
             this.support.add(Component.literal(line));
         }
+    }
+
+    // Buttons no longer draw their own label in 1.21.11; this mirrors vanilla Button.Plain
+    @Override
+    protected void renderContents(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
+        this.renderDefaultSprite(guiGraphics);
+        this.renderDefaultLabel(guiGraphics.textRendererForWidget(this, GuiGraphics.HoveredTextEffects.NONE));
     }
 
     public List<FormattedText> getSupport() {
