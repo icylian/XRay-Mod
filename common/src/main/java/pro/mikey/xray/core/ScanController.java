@@ -45,6 +45,9 @@ public enum ScanController {
 
     public final ScanStore scanStore = new ScanStore();
 
+    // Picks the vein to render in inverted colors (nearest qualifying vein in a top-density direction)
+    public final VeinHighlighter veinHighlighter = new VeinHighlighter();
+
 //    private BlockStore blockStore = new BlockStore();
 
     // Thread management
@@ -103,6 +106,82 @@ public enum ScanController {
         return Math.max(1, getRadius());
     }
 
+    // Height-limited scanning: when enabled, only a band around the player's feet is scanned.
+    // The center Y is captured on the render thread when the scan is requested, then read by
+    // the scanner threads when building each ChunkScanTask.
+    private volatile int lastScanCenterY = 0;
+
+    public boolean useScanHeightLimit() {
+        return XRay.config().useScanHeightLimit.get();
+    }
+
+    public int scanHeightBelow() {
+        return Math.max(0, XRay.config().scanHeightBelow.get());
+    }
+
+    public int scanHeightAbove() {
+        return Math.max(0, XRay.config().scanHeightAbove.get());
+    }
+
+    public int lastScanCenterY() {
+        return lastScanCenterY;
+    }
+
+    /**
+     * Counts of rendered targets around the player, grouped by direction relative to the
+     * player's chunk. Computed on demand from the render list; the render thread batches
+     * calls so this is cached for a short time.
+     */
+    public record DensityCounts(int north, int east, int south, int west, int here) {}
+
+    private DensityCounts cachedDensity = null;
+    private long lastDensityUpdateMs = 0;
+    private static final long DENSITY_CACHE_MS = 250;
+
+    public synchronized DensityCounts getDensityCounts() {
+        long now = System.currentTimeMillis();
+        if (cachedDensity != null && now - lastDensityUpdateMs < DENSITY_CACHE_MS) {
+            return cachedDensity;
+        }
+
+        var player = Minecraft.getInstance().player;
+        if (player == null) {
+            return new DensityCounts(0, 0, 0, 0, 0);
+        }
+
+        var playerChunkPos = player.chunkPosition();
+        int north = 0, east = 0, south = 0, west = 0, here = 0;
+
+        // Iterating a synchronizedMap requires holding its monitor or scanner threads can
+        // mutate it mid-iteration (ConcurrentModificationException)
+        List<Map.Entry<ChunkPos, Set<OutlineRenderTarget>>> entries;
+        synchronized (syncRenderList) {
+            entries = new ArrayList<>(syncRenderList.entrySet());
+        }
+
+        for (var entry : entries) {
+            int count = entry.getValue().size();
+            if (count == 0) {
+                continue;
+            }
+
+            int dx = entry.getKey().x() - playerChunkPos.x();
+            int dz = entry.getKey().z() - playerChunkPos.z();
+
+            if (dx == 0 && dz == 0) {
+                here += count;
+            } else if (Math.abs(dz) >= Math.abs(dx)) {
+                if (dz < 0) north += count; else south += count;
+            } else {
+                if (dx > 0) east += count; else west += count;
+            }
+        }
+
+        cachedDensity = new DensityCounts(north, east, south, west, here);
+        lastDensityUpdateMs = now;
+        return cachedDensity;
+    }
+
     public void incrementCurrentDist() {
         if (XRay.config().radius.get() < maxStepsToScan)
             XRay.config().radius.set(XRay.config().radius.get() + 1);
@@ -126,6 +205,21 @@ public enum ScanController {
         return lastChunkPos == null || !lastChunkPos.equals(plyChunkPos);
     }
 
+    /**
+     * True when the player has left the height band that was scanned, so the band
+     * needs to follow (e.g. while branch mining up or down).
+     */
+    private boolean scanBandLeft() {
+        if (!useScanHeightLimit() || Minecraft.getInstance().player == null)
+            return false;
+
+        int playerY = Minecraft.getInstance().player.blockPosition().getY();
+        int min = lastScanCenterY - scanHeightBelow();
+        int max = lastScanCenterY + scanHeightAbove();
+
+        return playerY < min || playerY > max;
+    }
+
     private void updatePlayerPosition() {
         lastChunkPos = Minecraft.getInstance().player.chunkPosition();
     }
@@ -136,13 +230,17 @@ public enum ScanController {
             return;
         }
 
-        if (isXRayActive() && (force || playerHasMoved())) {
+        if (isXRayActive() && (force || playerHasMoved() || scanBandLeft())) {
             updatePlayerPosition(); // since we're about to run, update the last known position
+            if (Minecraft.getInstance().player != null) {
+                this.lastScanCenterY = Minecraft.getInstance().player.blockPosition().getY();
+            }
 
             if (force) {
                 // Clear the render list if we are forcing a scan
                 syncRenderList.clear();
                 OutlineRender.clearVBOs(); // Clear the VBOs as well
+                veinHighlighter.reset(); // Forget the sticky vein pick
             }
 
             if (this.scanStore.activeScanTargets().isEmpty() && !isLavaActive()) {

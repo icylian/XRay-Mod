@@ -15,6 +15,8 @@ public class ChunkScanTask implements Runnable {
 
     private final int startX;
     private final int startZ;
+    private final int minY;
+    private final int maxY;
 
     public ChunkScanTask(Level level, ChunkPos pos) {
         // Move the chunk pos to block pos by multiplying by 16
@@ -22,6 +24,15 @@ public class ChunkScanTask implements Runnable {
         this.startZ = pos.z() << 4;
 
         this.level = level;
+
+        if (ScanController.INSTANCE.useScanHeightLimit()) {
+            int playerY = ScanController.INSTANCE.lastScanCenterY();
+            this.minY = Math.max(level.getMinY(), playerY - ScanController.INSTANCE.scanHeightBelow());
+            this.maxY = Math.min(level.getMaxY(), playerY + ScanController.INSTANCE.scanHeightAbove());
+        } else {
+            this.minY = level.getMinY();
+            this.maxY = level.getMaxY();
+        }
     }
 
     @Override
@@ -33,7 +44,7 @@ public class ChunkScanTask implements Runnable {
 
         for (int k = startX; k < startX + 16; k++) {
             for (int l = startZ; l < startZ + 16; l++) {
-                for (int m = level.getMinY(); m < level.getMaxY(); m++) {
+                for (int m = minY; m < maxY; m++) {
                     BlockPos pos = new BlockPos(k, m, l);
 
                     state = level.getBlockState(pos);
