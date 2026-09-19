@@ -27,6 +27,9 @@ public final class VeinHighlighter {
     // Root of the currently highlighted vein for stickiness (Long.MIN_VALUE = none);
     // reset whenever the vein disappears or XRay is force-refreshed
     private long currentVeinRoot = Long.MIN_VALUE;
+    // Y layer of the last highlighted vein: the next pick prefers staying on this layer,
+    // since climbing up/down between veins is the slowest travel in a mine
+    private int lastVeinY = Integer.MIN_VALUE;
 
     /**
      * Forget the current vein pick — used when the world/render list is force-refreshed,
@@ -36,6 +39,7 @@ public final class VeinHighlighter {
         currentVeinRoot = Long.MIN_VALUE;
         highlightedVeinBlocks = Set.of();
         lastRunMs = 0;
+        lastVeinY = Integer.MIN_VALUE;
     }
 
     /**
@@ -43,6 +47,20 @@ public final class VeinHighlighter {
      */
     private static boolean caveAvoidanceEnabled() {
         return pro.mikey.xray.XRay.config().caveAvoidance.get();
+    }
+
+    /**
+     * True when lava avoidance is enabled in the config.
+     */
+    private static boolean lavaAvoidanceEnabled() {
+        return pro.mikey.xray.XRay.config().lavaAvoidance.get();
+    }
+
+    /**
+     * True when bedrock avoidance is enabled in the config.
+     */
+    private static boolean bedrockAvoidanceEnabled() {
+        return pro.mikey.xray.XRay.config().bedrockAvoidance.get();
     }
 
     public record VeinResult(Set<Long> highlightedBlocks, int veinCount) {}
@@ -99,10 +117,11 @@ public final class VeinHighlighter {
             }
         }
 
-        // Group positions into veins and compute size + nearest distance per vein
+        // Group positions into veins and compute size + nearest block per vein
         Map<Long, List<Long>> veins = new HashMap<>();
         Map<Long, Integer> veinSizes = new HashMap<>();
         Map<Long, Integer> veinNearestDist = new HashMap<>();
+        Map<Long, Long> veinNearestBlock = new HashMap<>();
 
         var playerPos = player.blockPosition();
         for (long pos : parent.keySet()) {
@@ -120,19 +139,31 @@ public final class VeinHighlighter {
             // a similar walking distance away.
             int weightedYSq = dy * dy * Y_WEIGHT_SQ;
             int distSq = dx * dx + dz * dz + weightedYSq;
-            veinNearestDist.merge(root, distSq, Math::min);
+            Integer currentBest = veinNearestDist.get(root);
+            if (currentBest == null || distSq < currentBest) {
+                veinNearestDist.put(root, distSq);
+                veinNearestBlock.put(root, pos);
+            }
         }
 
-        // Pick the closest vein among those big enough and inside a top-density direction
+        // Pick the best vein among those big enough and inside a top-density direction,
+        // scored by distance, view alignment, and layer commitment
         long bestRoot = Long.MIN_VALUE;
-        int bestDist = Integer.MAX_VALUE;
+        double bestScore = Double.MAX_VALUE;
 
         // Currently highlighted vein, if it still exists in this analysis
         long currentRoot = Long.MIN_VALUE;
-        int currentDist = Integer.MAX_VALUE;
+        double currentScore = Double.MAX_VALUE;
+
+        // View direction on the horizontal plane, for the in-view preference
+        var eyePos = player.getEyePosition();
+        var look = player.getLookAngle();
+        double lookLen = Math.sqrt(look.x * look.x + look.z * look.z);
 
         var level = player.level();
         boolean avoidCaves = caveAvoidanceEnabled();
+        boolean avoidLava = lavaAvoidanceEnabled();
+        boolean avoidBedrock = bedrockAvoidanceEnabled();
 
         for (var veinEntry : veins.entrySet()) {
             long root = veinEntry.getKey();
@@ -150,26 +181,65 @@ public final class VeinHighlighter {
                 continue;
             }
 
+            // Skip veins hugging lava when avoidance is on: mining them floods the tunnel
+            if (avoidLava && veinTouchesLava(veinEntry.getValue(), level)) {
+                continue;
+            }
+
+            // Skip veins lying in the bedrock band when avoidance is on: digging there is
+            // slow (deepslate, cramped space) and the yield is no better than a few layers up
+            if (avoidBedrock && veinNearBedrock(veinEntry.getValue(), level)) {
+                continue;
+            }
+
             int dist = veinNearestDist.get(root);
+            double score = dist;
+
+            // In-view preference: veins inside the view cone (dot > 0.5, ~60°) get up to
+            // 30% cheaper; veins clearly behind the player get up to 50% more expensive,
+            // so the next pick is usually something visible without spinning the camera
+            BlockPos nearest = BlockPos.of(veinNearestBlock.get(root));
+            double vdx = nearest.getX() + 0.5 - eyePos.x;
+            double vdz = nearest.getZ() + 0.5 - eyePos.z;
+            double vdLen = Math.sqrt(vdx * vdx + vdz * vdz);
+            if (lookLen > 0.01 && vdLen > 0.5) {
+                double dot = (look.x * vdx + look.z * vdz) / (lookLen * vdLen);
+                if (dot > 0.5) {
+                    score *= 1.0 - 0.3 * Math.min(1.0, dot);
+                } else if (dot < -0.3) {
+                    score *= 1.0 + 0.5 * Math.min(1.0, -dot);
+                }
+            }
+
+            // Layer commitment: veins near the previously highlighted Y layer stay cheap,
+            // vertical trips get progressively pricier. This is what stops the highlight
+            // from bouncing between floor and ceiling levels while mining.
+            if (lastVeinY != Integer.MIN_VALUE) {
+                int layerGap = Math.abs(nearest.getY() - lastVeinY);
+                if (layerGap > 4) {
+                    score *= 1.0 + Math.min(1.5, (layerGap - 4) * 0.25);
+                }
+            }
+
             if (root == currentVeinRoot) {
                 currentRoot = root;
-                currentDist = dist;
+                currentScore = score;
             }
-            if (dist < bestDist) {
-                bestDist = dist;
+            if (score < bestScore) {
+                bestScore = score;
                 bestRoot = root;
             }
         }
 
         // Stickiness: keep highlighting the vein the player is already walking toward
         // unless it vanished (mined out / out of range / disqualified), or a competitor is
-        // dramatically closer (40%+). Without this, tiny rescan jitter steals the target
+        // dramatically better (40%+). Without this, tiny rescan jitter steals the target
         // mid-dig and the highlight flickers between veins.
         if (currentRoot != Long.MIN_VALUE
                 && bestRoot != currentRoot
-                && bestDist > currentDist * 3 / 5) {
+                && bestScore > currentScore * 3 / 5) {
             bestRoot = currentRoot;
-            bestDist = currentDist;
+            bestScore = currentScore;
         }
 
         if (bestRoot == Long.MIN_VALUE) {
@@ -178,9 +248,19 @@ public final class VeinHighlighter {
         } else {
             highlightedVeinBlocks = new HashSet<>(veins.get(bestRoot));
             currentVeinRoot = bestRoot;
+            lastVeinY = nearestYOf(veins.get(bestRoot));
         }
 
         return highlightedVeinBlocks;
+    }
+
+    /** Average Y of the vein: a stable layer reference that survives mining a few blocks. */
+    private static int nearestYOf(List<Long> blocks) {
+        long sum = 0;
+        for (long pos : blocks) {
+            sum += BlockPos.of(pos).getY();
+        }
+        return (int) (sum / blocks.size());
     }
 
     /** The two direction names (N/E/S/W) with the highest target counts. */
@@ -257,6 +337,59 @@ public final class VeinHighlighter {
                 } else {
                     airRun = 0;
                 }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * True when any block of the vein sits directly next to lava (horizontally or
+     * above): mining such a block cracks the wall open and floods the dig site.
+     */
+    private static boolean veinTouchesLava(List<Long> blocks, net.minecraft.world.level.Level level) {
+        Set<Long> veinSet = new HashSet<>(blocks);
+
+        for (long pos : blocks) {
+            BlockPos p = BlockPos.of(pos);
+
+            // Lava above: digging the block lets it pour down; lava to the sides:
+            // cracking the wall floods the tunnel
+            BlockPos[] exposures = {
+                p.above(),
+                p.north(),
+                p.south(),
+                p.east(),
+                p.west(),
+            };
+
+            for (BlockPos exposure : exposures) {
+                if (veinSet.contains(exposure.asLong())) {
+                    continue; // still vein, not an exposed face
+                }
+
+                var fluidState = level.getFluidState(exposure);
+                if (fluidState.getType() == net.minecraft.world.level.material.Fluids.LAVA
+                        || fluidState.getType() == net.minecraft.world.level.material.Fluids.FLOWING_LAVA) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * True when the vein's lowest block lies within the configured band above the world
+     * floor (the bedrock layer): mining there is slow, so veins a few layers up win.
+     */
+    private static boolean veinNearBedrock(List<Long> blocks, net.minecraft.world.level.Level level) {
+        int band = Math.max(0, pro.mikey.xray.XRay.config().bedrockCheckDepth.get());
+        int minY = level.getMinY();
+
+        for (long pos : blocks) {
+            if (BlockPos.of(pos).getY() - minY <= band) {
+                return true;
             }
         }
 

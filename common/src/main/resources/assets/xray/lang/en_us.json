@@ -105,5 +105,11 @@
   "xray.label.height_below": "Height Below",
   "xray.label.cave_avoidance": "Cave Avoidance",
   "xray.label.cave_depth": "Cave Check Depth",
-  "xray.label.cave_min_air": "Cave Air Threshold"
+  "xray.label.cave_min_air": "Cave Air Threshold",
+  "xray.input.lava_avoidance": "Lava Avoidance: %s",
+  "xray.label.lava_avoidance": "Lava Avoidance",
+  "xray.input.bedrock_avoidance": "Bedrock Avoidance: %s",
+  "xray.label.bedrock_avoidance": "Bedrock Avoidance",
+  "xray.label.bedrock_depth": "Bedrock Band",
+  "xray.tooltips.bedrock_depth": "Blocks above the world floor that count as the bedrock band (default 4)"
 }

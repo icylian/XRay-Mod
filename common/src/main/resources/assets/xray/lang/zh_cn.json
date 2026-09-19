@@ -105,5 +105,11 @@
   "xray.label.height_below": "下方高度",
   "xray.label.cave_avoidance": "避开洞穴矿脉",
   "xray.label.cave_depth": "洞穴探测深度",
-  "xray.label.cave_min_air": "判定空气数"
+  "xray.label.cave_min_air": "判定空气数",
+  "xray.input.lava_avoidance": "避开岩浆矿脉: %s",
+  "xray.label.lava_avoidance": "避开岩浆矿脉",
+  "xray.input.bedrock_avoidance": "避开基岩层矿脉: %s",
+  "xray.label.bedrock_avoidance": "避开基岩层矿脉",
+  "xray.label.bedrock_depth": "基岩层范围",
+  "xray.tooltips.bedrock_depth": "世界底板以上多少格内视为基岩层(默认 4)"
 }

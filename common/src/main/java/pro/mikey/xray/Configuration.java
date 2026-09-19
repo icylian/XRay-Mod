@@ -74,6 +74,20 @@ public enum Configuration {
                     .comment("so the highlighted target does not drop the player into a cave or put ore overhead.")
                     .build();
 
+    public final ConfigValue<Boolean> lavaAvoidance = bool("lavaAvoidance", () -> true)
+            .comment("When true, vein highlighting skips veins that touch lava,")
+                    .comment("so mining the highlighted target does not flood the dig site.")
+                    .build();
+
+    public final ConfigValue<Boolean> bedrockAvoidance = bool("bedrockAvoidance", () -> true)
+            .comment("When true, vein highlighting skips veins lying in the bedrock band,")
+                    .comment("where digging is slow and the yield is no better than higher up.")
+                    .build();
+
+    public final ConfigValue<Integer> bedrockCheckDepth = integer("bedrockCheckDepth", () -> 4)
+            .comment("How many blocks above the world floor count as the bedrock band.")
+                    .build();
+
     public final ConfigValue<Integer> caveCheckDepth = integer("caveCheckDepth", () -> 5)
             .comment("How many blocks below a vein to probe for open cave air.")
                     .build();
