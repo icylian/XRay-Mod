@@ -82,6 +82,20 @@ public enum Configuration {
             .comment("How many consecutive air blocks under a vein count as a cave.")
                     .build();
 
+    public final ConfigValue<Boolean> lavaAvoidance = bool("lavaAvoidance", () -> true)
+            .comment("When true, vein highlighting skips veins that touch lava,")
+                    .comment("so mining the highlighted target does not flood the dig site.")
+                    .build();
+
+    public final ConfigValue<Boolean> bedrockAvoidance = bool("bedrockAvoidance", () -> true)
+            .comment("When true, vein highlighting skips veins lying in the bedrock band,")
+                    .comment("where digging is slow and the yield is no better than higher up.")
+                    .build();
+
+    public final ConfigValue<Integer> bedrockCheckDepth = integer("bedrockCheckDepth", () -> 4)
+            .comment("How many blocks above the world floor count as the bedrock band.")
+                    .build();
+
     Configuration() {}
 
     public void load() {

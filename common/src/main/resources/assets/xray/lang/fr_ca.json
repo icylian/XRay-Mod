@@ -68,5 +68,11 @@
   "xray.label.height_below": "Hauteur en dessous",
   "xray.label.cave_avoidance": "Éviter les grottes",
   "xray.label.cave_depth": "Profondeur de détection",
-  "xray.label.cave_min_air": "Seuil d'air"
+  "xray.label.cave_min_air": "Seuil d'air",
+  "xray.input.lava_avoidance": "Éviter la lave : %s",
+  "xray.label.lava_avoidance": "Éviter la lave",
+  "xray.input.bedrock_avoidance": "Éviter la bedrock : %s",
+  "xray.label.bedrock_avoidance": "Éviter la bedrock",
+  "xray.label.bedrock_depth": "Zone de bedrock",
+  "xray.tooltips.bedrock_depth": "Blocs au-dessus du plancher du monde formant la zone de bedrock (défaut 4)"
 }

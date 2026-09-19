@@ -38,6 +38,7 @@ public class SettingsScreen extends GuiBase {
     private EditBox heightBelow;
     private EditBox caveCheckDepth;
     private EditBox caveCheckMinAir;
+    private EditBox bedrockCheckDepth;
 
     private record Row(AbstractWidget widget, String labelKey) {}
 
@@ -112,6 +113,14 @@ public class SettingsScreen extends GuiBase {
         this.caveCheckDepth = addNumber("xray.label.cave_depth", config.caveCheckDepth.get(), "xray.tooltips.cave_depth");
         this.caveCheckMinAir = addNumber("xray.label.cave_min_air", config.caveCheckMinAir.get(), "xray.tooltips.cave_min_air");
 
+        // --- Lava avoidance ---
+        addToggle("xray.input.lava_avoidance", "xray.label.lava_avoidance", config.lavaAvoidance);
+
+        // --- Bedrock avoidance ---
+        addToggle("xray.input.bedrock_avoidance", "xray.label.bedrock_avoidance", config.bedrockAvoidance);
+
+        this.bedrockCheckDepth = addNumber("xray.label.bedrock_depth", config.bedrockCheckDepth.get(), "xray.tooltips.bedrock_depth");
+
         // --- Save / cancel: pinned inside the panel below the scroll window ---
         Button save = Button.builder(Component.translatable("xray.single.save"), btn -> saveAndClose())
                 .pos(labelX(), contentBottom() + 3)
@@ -127,8 +136,8 @@ public class SettingsScreen extends GuiBase {
                 .build();
         addRenderableWidget(cancel);
 
-        // 10 content rows, 7 visible at a time
-        maxScroll = Math.max(0, 10 * ROW_HEIGHT - CONTENT_ROWS * ROW_HEIGHT);
+        // 13 content rows, 7 visible at a time
+        maxScroll = Math.max(0, 13 * ROW_HEIGHT - CONTENT_ROWS * ROW_HEIGHT);
         layout();
     }
 
@@ -195,6 +204,7 @@ public class SettingsScreen extends GuiBase {
         config.scanHeightBelow.set(clamp(parseInt(this.heightBelow), 0, 384));
         config.caveCheckDepth.set(clamp(parseInt(this.caveCheckDepth), 1, 64));
         config.caveCheckMinAir.set(clamp(parseInt(this.caveCheckMinAir), 1, 64));
+        config.bedrockCheckDepth.set(clamp(parseInt(this.bedrockCheckDepth), 0, 64));
 
         minecraft.setScreen(new ScanManageScreen());
     }
